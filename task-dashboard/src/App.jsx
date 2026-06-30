@@ -1,21 +1,21 @@
-// App.jsx — Phase 3: State is now alive.
-// App owns ALL shared state and passes it down as props.
-// Children communicate back up via callback props.
+// App.jsx — Phase 4: Lifecycle, useEffect, and persistence.
 //
-// STATE OWNED BY APP:
-//   tasks        — the array of all task objects (mutated via setter)
-//   activeFilter — which filter button is selected ("all" | "todo" | etc.)
+// WHAT CHANGED FROM PHASE 3:
+//   1. useState(INITIAL_TASKS) → useLocalStorage('tasks', INITIAL_TASKS)
+//      Tasks now persist across page refreshes automatically.
 //
-// DATA FLOW DIAGRAM:
-//   App (tasks state, filter state)
-//    │
-//    ├─→ StatsBar     ← receives computed counts (derived from tasks state)
-//    ├─→ AddTaskForm  ← receives onAddTask callback
-//    ├─→ FilterBar    ← receives activeFilter + onFilterChange callback
-//    └─→ TaskCard[]   ← receives task data + onDelete + onStatusChange callbacks
-//         │
-//         ├─→ StatusBadge     (presentational)
-//         └─→ PriorityIndicator (presentational)
+//   2. Stats computation → useTaskStats(tasks) custom hook
+//      Logic extracted out of App into a reusable hook.
+//
+//   3. useDocumentTitle — browser tab title updates with task count.
+//
+//   4. LifecycleDemo — toggled by local state to demonstrate mount/unmount.
+//
+// HOOKS USED IN THIS COMPONENT:
+//   useLocalStorage  — custom: state + localStorage sync (uses useState + useEffect)
+//   useTaskStats     — custom: derived stat computation
+//   useDocumentTitle — custom: document.title side effect (uses useEffect)
+//   useState         — for filter and lifecycle demo toggle
 
 import { useState } from 'react'
 import Header from './components/Header'
@@ -24,13 +24,13 @@ import Section from './components/Section'
 import StatsBar from './components/StatsBar'
 import FilterBar from './components/FilterBar'
 import AddTaskForm from './components/AddTaskForm'
+import LifecycleDemo from './components/LifecycleDemo'
+import useLocalStorage from './hooks/useLocalStorage'
+import useTaskStats from './hooks/useTaskStats'
+import useDocumentTitle from './hooks/useDocumentTitle'
 import './App.css'
 
-// ─── Initial Data ─────────────────────────────────────────────────────────────
-// Defined OUTSIDE the component so it is created once, not on every render.
-// This is important: if this were inside App(), it would be recreated on every
-// render, causing a new array reference every time (breaks memoisation later).
-
+// ─── Initial Data (outside component — created once, not on every render) ────
 const INITIAL_TASKS = [
   {
     id: 1,
@@ -60,16 +60,16 @@ const INITIAL_TASKS = [
     id: 4,
     title: 'Understand useState Hook',
     description: 'Add interactivity with state — make the task dashboard respond to user actions.',
-    status: 'in-progress',
+    status: 'done',
     priority: 'high',
     phase: 3,
   },
   {
     id: 5,
-    title: 'Explore useEffect Hook',
-    description: 'Learn about side effects — fetching data, subscriptions, and syncing with external systems.',
-    status: 'todo',
-    priority: 'medium',
+    title: 'Explore useEffect and Lifecycle',
+    description: 'Learn about side effects — localStorage persistence, document title, cleanup functions.',
+    status: 'in-progress',
+    priority: 'high',
     phase: 4,
   },
   {
@@ -85,91 +85,75 @@ const INITIAL_TASKS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 function App() {
-  // ── State declarations ────────────────────────────────────────────────────
-  //
-  // useState(INITIAL_TASKS) — first render: tasks = INITIAL_TASKS
-  // On subsequent renders: tasks = whatever setTasks was last called with
-  //
-  // The INITIAL_TASKS constant is only used once — on the very first render.
-  // After that, React reads the value from the Fiber node's memoizedState.
-  const [tasks, setTasks] = useState(INITIAL_TASKS)
+  // ── Custom hook: persisted state ─────────────────────────────────────────
+  // useLocalStorage has the SAME interface as useState.
+  // Internally it uses useState + useEffect to sync with localStorage.
+  // From App's perspective, it's just "state that also saves itself".
+  const [tasks, setTasks] = useLocalStorage('tasks', INITIAL_TASKS)
 
-  // Filter state — which category of tasks to show
+  // ── Regular state ─────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState('all')
+  const [showLifecycleDemo, setShowLifecycleDemo] = useState(false)
 
-  // ── Derived values (computed from state — NOT separate state) ─────────────
-  //
-  // These are NOT useState calls — they are plain computed values.
-  // RULE: if a value can be calculated from existing state, do NOT put it in
-  // useState. Derive it during render. Keeping redundant state in sync is
-  // a common source of bugs.
-  //
-  // These recalculate automatically on every render (whenever tasks changes).
-  const stats = {
-    total:      tasks.length,
-    done:       tasks.filter(t => t.status === 'done').length,
-    inProgress: tasks.filter(t => t.status === 'in-progress').length,
-    todo:       tasks.filter(t => t.status === 'todo').length,
-  }
+  // ── Custom hook: computed stats ───────────────────────────────────────────
+  // Extracts the filter+count logic out of App. Cleaner component body.
+  const stats = useTaskStats(tasks)
 
-  // Apply the active filter to produce the visible list
+  // ── Custom hook: document title side effect ───────────────────────────────
+  // Updates the browser tab title whenever the todo count changes.
+  // The hook internally uses useEffect — App doesn't need to care about that.
+  useDocumentTitle(
+    stats.todo > 0
+      ? `(${stats.todo} todo) Task Dashboard`
+      : 'Task Dashboard'
+  )
+
+  // ── Derived value ─────────────────────────────────────────────────────────
   const visibleTasks = activeFilter === 'all'
     ? tasks
     : tasks.filter(task => task.status === activeFilter)
 
   // ── Event handlers ────────────────────────────────────────────────────────
-  //
-  // These functions are defined inside App because they need access to
-  // setTasks. They will be passed DOWN as callback props to children.
-  // Children call them; App updates state; React re-renders.
 
   function handleAddTask(newTaskData) {
-    // Create a new task with a unique id.
-    // Date.now() gives a timestamp-based number — simple and works for our
-    // purposes. In production you'd use a UUID library or a server-generated ID.
     const newTask = {
-      ...newTaskData,          // spread: title, description, priority, status
-      id: Date.now(),          // unique identifier
-      phase: 3,                // tasks added via form belong to current phase
+      ...newTaskData,
+      id: Date.now(),
+      phase: 4,
     }
-
-    // IMMUTABILITY: we create a NEW array — not mutate the existing one.
-    // [...tasks, newTask] creates a new array with all existing tasks + newTask.
-    // React sees a new array reference → triggers re-render.
-    setTasks(prevTasks => [...prevTasks, newTask])
-    //        ↑ Functional update: we use prev => [...] because the new state
-    //          depends on the previous state. This is the correct pattern.
+    setTasks(prev => [...prev, newTask])
   }
 
   function handleDeleteTask(taskId) {
-    // filter() returns a NEW array — immutability preserved.
-    // Every task EXCEPT the one with matching id is kept.
-    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId))
+    setTasks(prev => prev.filter(task => task.id !== taskId))
   }
 
   function handleStatusChange(taskId, newStatus) {
-    // map() returns a NEW array — immutability preserved.
-    // For the matching task, we create a NEW object with the updated status.
-    // For all other tasks, we return the same object reference (no copy needed).
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
+    setTasks(prev =>
+      prev.map(task =>
         task.id === taskId
-          ? { ...task, status: newStatus }   // new object — changed
-          : task                             // same reference — unchanged
+          ? { ...task, status: newStatus }
+          : task
       )
     )
+  }
+
+  function handleResetTasks() {
+    // Demonstrates: setTasks replaces localStorage value entirely.
+    // Useful to "reset" the demo back to initial state.
+    if (window.confirm('Reset all tasks to initial state?')) {
+      setTasks(INITIAL_TASKS)
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      <Header currentPhase={3} />
+      <Header currentPhase={4} />
 
       <main className="main-content">
 
-        {/* StatsBar receives derived numbers — not the raw tasks array.
-            It doesn't need the full tasks data, only the counts. */}
         <StatsBar
           total={stats.total}
           done={stats.done}
@@ -177,25 +161,41 @@ function App() {
           todo={stats.todo}
         />
 
-        {/* AddTaskForm receives only the callback — it owns its own form state */}
         <AddTaskForm onAddTask={handleAddTask} />
+
+        {/*
+          LifecycleDemo is conditionally rendered — it mounts and unmounts
+          based on showLifecycleDemo state. This lets us observe the full
+          mount → update → unmount lifecycle in the console.
+
+          IMPORTANT: When showLifecycleDemo goes from false → true:
+            - LifecycleDemo is MOUNTED (Effect 2 fires: "Component MOUNTED")
+          When it goes from true → false:
+            - LifecycleDemo is UNMOUNTED (Effect 2 cleanup fires: "Component UNMOUNTED")
+        */}
+        <div className="lifecycle-toggle-row">
+          <label className="lifecycle-toggle-label">
+            <input
+              type="checkbox"
+              checked={showLifecycleDemo}
+              onChange={e => setShowLifecycleDemo(e.target.checked)}
+            />
+            <span>Show Lifecycle Visualiser (open DevTools Console)</span>
+          </label>
+        </div>
+
+        {/* Conditional rendering: LifecycleDemo only exists in the DOM when checked */}
+        {showLifecycleDemo && <LifecycleDemo />}
 
         <Section title="My Tasks" count={visibleTasks.length}>
 
-          {/* FilterBar: receives the current filter value AND the setter callback.
-              This is "lifting state up" — the filter state lives in App, not FilterBar,
-              because App needs it to compute visibleTasks. */}
           <FilterBar
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
-            // ↑ We pass setActiveFilter directly as the callback.
-            //   setActiveFilter IS a function: (newValue) => update state
-            //   FilterBar calls onFilterChange(value) → same as setActiveFilter(value)
           />
 
           <div className="task-grid">
             {visibleTasks.length === 0 ? (
-              // Conditional rendering: show empty state when no tasks match filter
               <div className="empty-state">
                 <p>No tasks match this filter.</p>
               </div>
@@ -217,6 +217,13 @@ function App() {
           </div>
 
         </Section>
+
+        {/* Reset button — demonstrates that setTasks overwrites localStorage too */}
+        <div className="reset-row">
+          <button className="btn btn-reset" onClick={handleResetTasks}>
+            Reset to Initial Tasks
+          </button>
+        </div>
 
       </main>
     </>
