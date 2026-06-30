@@ -19,19 +19,53 @@ const BASE_URL = import.meta.env.VITE_API_URL
 // → "http://localhost:3001"  in development  (.env.development)
 // → "https://api...."        in production   (.env.production)
 
+// ─── Token Reader ─────────────────────────────────────────────────────────────
+//
+// Reads the JWT from localStorage at call time.
+// Called once per request — always gets the current token.
+//
+// WHY NOT PASS TOKEN AS A PARAMETER?
+// Every taskApi method would need to accept and pass the token — verbose.
+// Reading it here centralises the logic in one place (single responsibility).
+//
+// PRODUCTION ALTERNATIVE — Axios Interceptors:
+// With axios, you register a "request interceptor" that runs before every call:
+//
+//   import axios from 'axios'
+//   const apiClient = axios.create({ baseURL: BASE_URL })
+//
+//   apiClient.interceptors.request.use((config) => {
+//     const token = localStorage.getItem('auth_token')
+//     if (token) config.headers.Authorization = `Bearer ${token}`
+//     return config
+//   })
+//
+//   // Then use apiClient.get('/tasks') instead of fetch()
+//   // The interceptor runs automatically — no token code in individual methods
+//
+// Our fetch()-based approach achieves the same result, just more explicitly.
+function getAuthHeader() {
+  const token = localStorage.getItem('auth_token')
+  // If logged out (no token), return empty object — no Authorization header added
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 // ─── Shared request helper ───────────────────────────────────────────────────
 //
 // Centralises the two fetch gotchas:
 //   1. fetch() only rejects on network failure — must manually check res.ok
 //   2. res.json() must be called separately — response body is a stream
 //
+// Phase 10 addition: Authorization header via getAuthHeader()
+//
 // Every taskApi method calls this instead of fetch() directly.
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
-    // Default headers — merge with any headers passed by the caller
+    // Default headers — merge with auth header + any headers passed by caller
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...getAuthHeader(),   // ← Phase 10: attach JWT on every request
+      ...options.headers,   // caller-provided headers override defaults
     },
     ...options,
   })

@@ -1,68 +1,83 @@
-// App.jsx — Phase 8: Route configuration.
-// App now defines the route tree instead of direct layout.
-// BrowserRouter is in main.jsx — App defines what renders at each URL.
+// App.jsx — Phase 10: Authentication added to route tree.
 //
-// ROUTE TREE:
-//   /               → redirect to /tasks
-//   /tasks          → DashboardLayout > TasksPage        (nested route)
-//   /tasks/:taskId  → DashboardLayout > TaskDetailPage   (nested route)
-//   /settings       → DashboardLayout > SettingsPage     (nested route)
-//   *               → NotFoundPage                        (catch-all)
+// WHAT CHANGED FROM PHASE 8:
+// ─────────────────────────────────────────────────────────────────────────
+//   Added:    /login route → LoginPage
+//   Added:    ProtectedRoute wraps all DashboardLayout routes
+//   Updated:  Navigate from / goes to /login if not authenticated (via
+//             ProtectedRoute on /tasks which redirects to /login)
 //
-// NESTED ROUTES EXPLAINED:
-// Routes /tasks, /tasks/:taskId, and /settings all share DashboardLayout.
-// DashboardLayout renders Header + Sidebar + <Outlet />.
-// <Outlet /> is where the child route component (TasksPage, etc.) renders.
-// When navigating between these routes, DashboardLayout STAYS mounted —
-// only the content inside <Outlet /> changes.
+// ROUTE TREE (Phase 10):
+// ─────────────────────────────────────────────────────────────────────────
+//   /               → redirect to /tasks → ProtectedRoute → LoginPage (if unauth)
+//   /login          → LoginPage (public — no auth required)
+//   /tasks          → ProtectedRoute → DashboardLayout > TasksPage
+//   /tasks/:taskId  → ProtectedRoute → DashboardLayout > TaskDetailPage
+//   /settings       → ProtectedRoute → DashboardLayout > SettingsPage
+//   *               → NotFoundPage
 //
-// This is why Header doesn't flash, Sidebar doesn't disappear, and
-// any sidebar animations don't reset on navigation.
+// WHY WRAP DashboardLayout WITH ProtectedRoute?
+// ─────────────────────────────────────────────────────────────────────────
+// DashboardLayout wraps all three inner routes (/tasks, /tasks/:id, /settings).
+// By placing ProtectedRoute around the layout route's element, we protect ALL
+// three child routes with a single ProtectedRoute instance.
+//
+// Alternative: wrapping each Route individually — more explicit but repetitive.
+// Wrapping the layout is the cleaner, DRY approach.
+//
+// HOW IT WORKS:
+//   1. User visits /tasks (not logged in)
+//   2. Route matches the layout route → React tries to render DashboardLayout
+//   3. But first: ProtectedRoute renders
+//   4. ProtectedRoute sees isAuthenticated=false → returns <Navigate to="/login">
+//   5. User is redirected to /login with state.from = /tasks
+//   6. User logs in → LoginPage navigates to /tasks (from state.from)
 
 import { Routes, Route, Navigate } from 'react-router-dom'
 import DashboardLayout from './components/DashboardLayout'
+import ProtectedRoute from './components/ProtectedRoute'
 import TasksPage from './pages/TasksPage'
 import TaskDetailPage from './pages/TaskDetailPage'
 import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import LoginPage from './pages/LoginPage'
 
 function App() {
   return (
     <Routes>
-      {/*
-        Redirect root to /tasks.
-        <Navigate> is the declarative equivalent of calling navigate() in code.
-        replace: don't add '/' to history — back button won't return to '/'
-      */}
+
+      {/* Root redirect — same as before */}
       <Route path="/" element={<Navigate to="/tasks" replace />} />
 
       {/*
-        Layout route: path="/*" means "this route handles all sub-paths".
-        DashboardLayout renders for ALL paths starting with /.
-        Its <Outlet /> renders the matched child route.
+        Public route — NO ProtectedRoute wrapper.
+        /login is accessible without authentication.
+        If an authenticated user visits /login, we could redirect them to
+        /tasks (see the "already logged in" check in LoginPage).
+        For simplicity, we don't add that redirect here.
       */}
-      <Route element={<DashboardLayout />}>
-
-        {/* /tasks — the main tasks list */}
-        <Route path="/tasks" element={<TasksPage />} />
-
-        {/*
-          /tasks/:taskId — individual task detail
-          :taskId is a URL parameter — accessible via useParams() in TaskDetailPage
-          e.g. /tasks/42 → useParams() returns { taskId: "42" }
-        */}
-        <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-
-        {/* /settings */}
-        <Route path="/settings" element={<SettingsPage />} />
-
-      </Route>
+      <Route path="/login" element={<LoginPage />} />
 
       {/*
-        Catch-all — matches any URL not matched by routes above.
-        Place LAST — React Router tries routes in order, top to bottom.
-        If this were first, it would match everything.
+        Protected layout route.
+        ProtectedRoute wraps DashboardLayout — all nested routes are protected.
+        If not authenticated: ProtectedRoute redirects to /login.
+        If authenticated: DashboardLayout renders with <Outlet />.
       */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        {/* These three routes are all protected via the layout above */}
+        <Route path="/tasks"          element={<TasksPage />}      />
+        <Route path="/tasks/:taskId"  element={<TaskDetailPage />} />
+        <Route path="/settings"       element={<SettingsPage />}   />
+      </Route>
+
+      {/* Catch-all — still public, no ProtectedRoute needed */}
       <Route path="*" element={<NotFoundPage />} />
 
     </Routes>

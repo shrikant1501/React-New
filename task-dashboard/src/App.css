@@ -977,3 +977,155 @@ a.task-card:hover {
 
 .skeleton-title    { height: 16px; width: 70%; }
 .skeleton-subtitle { height: 12px; width: 45%; margin-top: 0.5rem; }
+
+/* ─── Phase 10: Authentication Styles ───────────────────────────────────── */
+
+/* ── Login Page ─────────────────────────────────────────────────────────── */
+
+/* Full-page centered layout — no sidebar, no header on login */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg);
+  padding: 2rem;
+}
+
+/* The login card — white box in the center */
+.login-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.login-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.5px;
+}
+
+.login-brand p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Red error banner — shown when login fails */
+.login-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: var(--color-danger);
+}
+
+/* Demo credentials hint box */
+.login-demo-hint {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.login-demo-hint strong { color: var(--color-text); }
+.login-demo-hint code {
+  background: rgba(99, 102, 241, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--color-primary-hover);
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+
+/* The form itself */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Full-width submit button */
+.login-submit {
+  width: 100%;
+  padding: 0.65rem;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.login-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Header User Info + Logout ─────────────────────────────────────────── */
+
+/* Wrapper for avatar + name + logout button in the header */
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-right: 0.5rem;
+}
+
+/* Circular avatar with first initial */
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* Logout button — subtle, matches the header style */
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.btn-logout:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ── header-meta layout fix (align all items in a row) ─────────────────── */
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
