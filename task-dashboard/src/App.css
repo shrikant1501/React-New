@@ -460,3 +460,84 @@
   color: var(--color-danger);
 }
 
+
+/* ─── Form Phase 5 Additions ─────────────────────────── */
+
+.form-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: 0.3px;
+}
+
+.required-mark {
+  color: var(--color-danger);
+  margin-left: 2px;
+}
+
+.char-count {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  transition: color 0.2s;
+}
+
+.char-count-warn {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.form-input-error {
+  border-color: var(--color-danger) !important;
+}
+
+.form-input-error:focus {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+.form-error {
+  font-size: 0.75rem;
+  color: var(--color-danger);
+  margin-top: 0.3rem;
+  display: block;
+}
+
+/* ─── Task Count Display (usePrevious demo) ──────────── */
+
+.task-count-display {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tcd-current {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.tcd-delta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  animation: fadeIn 0.3s ease;
+}
+
+.tcd-added   { color: var(--color-success); background: rgba(34,197,94,0.1); }
+.tcd-removed { color: var(--color-danger);  background: rgba(239,68,68,0.1); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
