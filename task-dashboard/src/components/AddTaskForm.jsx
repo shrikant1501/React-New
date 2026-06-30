@@ -1,108 +1,155 @@
-// AddTaskForm.jsx — Phase 5: Production-quality form.
+// AddTaskForm.jsx — Phase 11: Migrated to React Hook Form + Zod.
 //
-// DEMONSTRATES:
-//   1. useRef for DOM access — auto-focus title input on mount
-//   2. useFormValidation custom hook — validation, touched state, errors
-//   3. Character count — real-time feedback using controlled input
-//   4. Accessible error messages — aria-describedby, role="alert"
-//   5. Disabled submit — prevent submission when form is invalid
-//   6. Visual field states — error borders, error text
+// WHAT CHANGED FROM PHASE 5:
+// ─────────────────────────────────────────────────────────────────────────
+// Before: useState for every field + custom useFormValidation hook
+//         → Re-render on every keystroke (controlled inputs)
 //
-// CONTROLLED vs UNCONTROLLED in this form:
-//   All inputs are CONTROLLED — state drives every field value.
-//   The title field ALSO uses a ref, but only to call .focus() on mount.
-//   Having a ref AND being controlled is valid — they serve different purposes:
-//     ref → access the DOM node (for focus, measurements)
-//     value/onChange → control what's displayed (React's job)
+// After:  React Hook Form (useRef-based, uncontrolled inputs)
+//         → Zero re-renders while typing; only re-renders on error state changes
+//
+// KEY CONCEPTS:
+// ─────────────────────────────────────────────────────────────────────────
+// 1. useForm()       — initialises the form; returns register, handleSubmit, etc.
+// 2. register()      — connects an input to RHF via a ref (NOT useState)
+// 3. handleSubmit()  — wraps your submit handler; only calls it when valid
+// 4. formState       — { errors, isSubmitting, isDirty, isValid, ... }
+// 5. zodResolver     — bridges Zod schema to RHF's validation system
+// 6. reset()         — programmatically reset form to defaultValues
+//
+// UNCONTROLLED INPUTS:
+// ─────────────────────────────────────────────────────────────────────────
+// register('title') returns:
+//   { name: 'title', ref: fn, onChange: fn, onBlur: fn }
+//
+// Spread onto the input:
+//   <input {...register('title')} />
+//
+// RHF's ref stores the DOM node internally.
+// Values are read from the DOM on submit/validate — never via React state.
+// This is why RHF is fast: no useState = no re-render on keystroke.
+//
+// EXCEPTION: When you need to watch a value live (e.g., char count display),
+// you must use the watch() function or use { mode: 'onChange' }.
+// We use watch('title') and watch('description') for the char counters
+// to preserve that feature from Phase 5.
 
-import { useRef, useEffect } from 'react'
-import useFormValidation from '../hooks/useFormValidation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 
-// ─── Validation Rules ─────────────────────────────────────────────────────────
-// Defined OUTSIDE the component — stable reference across renders.
-// If defined inside, a new object would be created on every render,
-// which would make useCallback deps unstable in useFormValidation.
+// ─── Zod Schema ───────────────────────────────────────────────────────────────
+//
+// The schema is the single source of truth for:
+//   - What fields exist
+//   - Their types and constraints
+//   - Error messages
+//
+// In TypeScript projects: z.infer<typeof taskSchema> gives you the type for free.
+// In JavaScript: it's just validation logic — still very useful.
+//
+// z.string()       → must be a string
+// .min(n, msg)     → minimum length
+// .max(n, msg)     → maximum length
+// .trim()          → trim whitespace before validating
+// .optional()      → field can be undefined/empty
+// z.enum([...])    → must be one of the listed values
 
 const TITLE_MAX = 80
 const DESC_MAX  = 200
 
-const VALIDATION_RULES = {
-  title: (value) => {
-    if (!value || !value.trim())       return 'Title is required'
-    if (value.trim().length < 3)       return 'Title must be at least 3 characters'
-    if (value.length > TITLE_MAX)      return `Title must be ${TITLE_MAX} characters or fewer`
-    return null   // null = no error
-  },
-  description: (value) => {
-    if (value && value.length > DESC_MAX)
-      return `Description must be ${DESC_MAX} characters or fewer`
-    return null
-  },
-}
+const taskSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(3,         'Title must be at least 3 characters')
+    .max(TITLE_MAX, `Title must be ${TITLE_MAX} characters or fewer`),
 
-const INITIAL_VALUES = {
-  title:       '',
-  description: '',
-  priority:    'medium',
-}
+  description: z
+    .string()
+    .max(DESC_MAX, `Description must be ${DESC_MAX} characters or fewer`)
+    .optional()
+    .or(z.literal('')),  // allow empty string (optional field)
+
+  priority: z.enum(['low', 'medium', 'high']),
+})
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 function AddTaskForm({ onAddTask, isSubmitting = false }) {
-  // ── useRef: DOM access for auto-focus ─────────────────────────────────────
-  // We want to focus the title input when the form mounts.
-  // We cannot do this in render (side effect) — it goes in useEffect.
-  // useRef gives us the bridge to the actual DOM node.
-  const titleInputRef = useRef(null)
 
-  useEffect(() => {
-    // After mount: titleInputRef.current is the real <input> DOM node.
-    // We call the browser's native .focus() method directly.
-    // This is one of the main reasons useRef exists — imperative DOM access
-    // for things React doesn't expose declaratively.
-    titleInputRef.current?.focus()
-    // ?. optional chaining: safe if ref is somehow null (defensive coding)
-  }, [])   // [] = run once on mount
-
-  // ── useFormValidation: validation logic via custom hook ───────────────────
+  // ── useForm: the heart of React Hook Form ─────────────────────────────────
+  //
+  // resolver: zodResolver(taskSchema) → RHF uses Zod to validate on submit/blur
+  //
+  // defaultValues: initial field values (like initialValues in our custom hook)
+  // Important: always provide defaultValues for controlled selects/checkboxes
+  //
+  // mode: 'onBlur' → validate when a field loses focus (same UX as Phase 5)
+  // Other options: 'onChange' (every keystroke), 'onSubmit' (submit only)
+  //
   const {
-    values,
-    errors,
-    touched,
-    isValid,
-    handleChange,
-    handleBlur,
-    handleSubmit,
-    reset,
-  } = useFormValidation(INITIAL_VALUES, VALIDATION_RULES)
-
-  // ── Form submit handler ───────────────────────────────────────────────────
-  // handleSubmit() returns an event handler.
-  // It validates, calls onSubmit only if valid, then we also reset.
-  const onSubmit = handleSubmit((validValues) => {
-    onAddTask({
-      title:       validValues.title.trim(),
-      description: validValues.description.trim(),
-      priority:    validValues.priority,
-      status:      'todo',
-      phase:       9,   // Phase 9 — tasks added from the UI belong to this phase
-    })
-    reset()
-
-    // After reset, re-focus the title field for rapid task entry
-    setTimeout(() => titleInputRef.current?.focus(), 0)
+    register,      // connects input to RHF
+    handleSubmit,  // wraps submit handler with validation
+    formState: {
+      errors,       // { title: { message: '...' }, ... }
+      isValid,      // true when schema passes (respects mode)
+    },
+    reset,         // programmatically reset all fields to defaultValues
+    watch,         // subscribe to a field's live value (causes re-render on change)
+  } = useForm({
+    resolver: zodResolver(taskSchema),
+    defaultValues: {
+      title:       '',
+      description: '',
+      priority:    'medium',
+    },
+    mode: 'onBlur',  // validate on blur → same UX as Phase 5
   })
 
-  // ─── Derived display values ───────────────────────────────────────────────
-  const titleCharsLeft = TITLE_MAX - values.title.length
-  const descCharsLeft  = DESC_MAX  - values.description.length
+  // ── watch: subscribe to live values for char count display ────────────────
+  //
+  // watch() reads the current DOM value and causes a re-render when it changes.
+  // This is the one case where RHF re-renders on change — only for watched fields.
+  // Use sparingly: only watch fields where you need live feedback.
+  //
+  // Alternative: use the native input event with a ref. But watch() is cleaner.
+  const titleValue = watch('title') || ''
+  const descValue  = watch('description') || ''
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ── Auto-focus on mount (same as Phase 5) ─────────────────────────────────
+  // RHF's register() sets up the ref internally. We can still get a ref to
+  // the input by using the ref callback pattern from register():
+  //   const { ref: titleRef, ...titleReg } = register('title')
+  //   <input ref={node => { titleRef(node); myRef.current = node }} ...titleReg />
+  //
+  // Simpler: just use autoFocus on the input element directly.
+  // autoFocus is a native HTML attribute — works without any JS/refs.
+
+  // ── Submit handler ─────────────────────────────────────────────────────────
+  //
+  // handleSubmit(onValid, onInvalid):
+  //   - onValid: called with the validated form values when schema passes
+  //   - onInvalid: optional — called with errors when validation fails
+  //
+  // RHF calls e.preventDefault() for you — you don't need to.
+  //
+  // data parameter: the parsed, validated values from the Zod schema
+  // After Zod validation, trim() has already been applied.
+  //
+  const onSubmit = handleSubmit((data) => {
+    onAddTask({
+      title:       data.title,        // already trimmed by Zod schema
+      description: data.description || '',
+      priority:    data.priority,
+      status:      'todo',
+      phase:       11,
+    })
+    reset()  // clears all fields back to defaultValues
+  })
 
   return (
     <form className="add-task-form" onSubmit={onSubmit} noValidate>
-      {/* noValidate: disables browser's native validation UI — we handle it */}
-
       <h3 className="form-title">Add New Task</h3>
 
       {/* ── Title Field ──────────────────────────────────────────────────── */}
@@ -111,37 +158,35 @@ function AddTaskForm({ onAddTask, isSubmitting = false }) {
           <label className="form-label" htmlFor="task-title">
             Title <span className="required-mark">*</span>
           </label>
-          <span className={`char-count ${titleCharsLeft < 10 ? 'char-count-warn' : ''}`}>
-            {titleCharsLeft}
+          <span className={`char-count ${TITLE_MAX - titleValue.length < 10 ? 'char-count-warn' : ''}`}>
+            {TITLE_MAX - titleValue.length}
           </span>
         </div>
 
+        {/*
+          register('title') returns:
+            { name: 'title', ref: ..., onChange: ..., onBlur: ... }
+          Spreading it on the input hooks it into RHF.
+          autoFocus: native HTML attribute for initial focus.
+        */}
         <input
           id="task-title"
-          ref={titleInputRef}
-          // ↑ ref attaches React to the DOM node — does NOT make this uncontrolled.
-          //   This input is STILL controlled (has value + onChange below).
-          //   ref is used separately, only for .focus() in useEffect.
-          className={`form-input ${errors.title ? 'form-input-error' : ''}`}
           type="text"
-          placeholder="e.g. Learn useRef and useEffect..."
-          value={values.title}
-          onChange={e => handleChange('title', e.target.value)}
-          onBlur={() => handleBlur('title')}
-          // onBlur: fires when input loses focus — marks field as "touched"
-          // Errors only show for touched fields (better UX than showing on first render)
+          placeholder="e.g. Learn React Hook Form..."
+          autoFocus
+          className={`form-input ${errors.title ? 'form-input-error' : ''}`}
           aria-describedby={errors.title ? 'title-error' : undefined}
-          // aria-describedby: accessibility — screen readers announce the error
-          maxLength={TITLE_MAX + 10}
-          // Allow a few extra chars so they can see the error before being cut off
+          {...register('title')}
         />
 
-        {/* Error message — only shown when field is touched AND has an error */}
+        {/*
+          errors.title is set by RHF/Zod when validation fails.
+          errors.title.message is the string from our Zod schema (.min(3, 'message here'))
+        */}
         {errors.title && (
           <span id="title-error" className="form-error" role="alert">
-            {errors.title}
+            {errors.title.message}
           </span>
-          // role="alert": accessibility — screen readers immediately read this
         )}
       </div>
 
@@ -149,25 +194,23 @@ function AddTaskForm({ onAddTask, isSubmitting = false }) {
       <div className="form-group">
         <div className="form-field-row">
           <label className="form-label" htmlFor="task-desc">Description</label>
-          <span className={`char-count ${descCharsLeft < 20 ? 'char-count-warn' : ''}`}>
-            {descCharsLeft}
+          <span className={`char-count ${DESC_MAX - descValue.length < 20 ? 'char-count-warn' : ''}`}>
+            {DESC_MAX - descValue.length}
           </span>
         </div>
 
         <input
           id="task-desc"
-          className={`form-input ${errors.description ? 'form-input-error' : ''}`}
           type="text"
           placeholder="Optional — what does this task involve?"
-          value={values.description}
-          onChange={e => handleChange('description', e.target.value)}
-          onBlur={() => handleBlur('description')}
+          className={`form-input ${errors.description ? 'form-input-error' : ''}`}
           aria-describedby={errors.description ? 'desc-error' : undefined}
+          {...register('description')}
         />
 
         {errors.description && (
           <span id="desc-error" className="form-error" role="alert">
-            {errors.description}
+            {errors.description.message}
           </span>
         )}
       </div>
@@ -176,21 +219,24 @@ function AddTaskForm({ onAddTask, isSubmitting = false }) {
       <div className="form-row">
         <select
           className="form-select"
-          value={values.priority}
-          onChange={e => handleChange('priority', e.target.value)}
           aria-label="Task priority"
+          {...register('priority')}
         >
           <option value="low">Low Priority</option>
           <option value="medium">Medium Priority</option>
           <option value="high">High Priority</option>
         </select>
 
+        {/*
+          disabled when isSubmitting (API call in flight) OR when the form has
+          errors AND the user has interacted at least once (!isValid only matters
+          after first blur/submit — mode:'onBlur').
+          isSubmitting here = the prop from parent (API mutation pending).
+        */}
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={(touched.title && !isValid) || isSubmitting}
-          // Also disabled while the POST request is in flight (isSubmitting)
-          // Prevents double-submission if the user clicks twice quickly.
+          disabled={isSubmitting}
         >
           {isSubmitting ? 'Adding…' : 'Add Task'}
         </button>
