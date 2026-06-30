@@ -1,54 +1,99 @@
-// components/TaskListSection.jsx
-// Renders the filtered task list — reads ALL needed data from context.
-// This component takes ZERO props from its parent.
-// It self-sufficiently reads tasks, filter, and dispatch from context.
+// components/TaskListSection.jsx — Phase 8: filter driven by URL query params.
 //
-// BEFORE Context (Phase 6):
-//   App → Section → FilterBar (via props)
-//   App → Section → TaskCard×N (via props)
-//   App managed: tasks, filter, visibleTasks, all handlers
+// CHANGE FROM PHASE 7:
+// Previously: read activeFilter from FilterContext (React state)
+// Now:        receives activeFilter + onFilterChange as props from TasksPage
 //
-// AFTER Context (Phase 7):
-//   TaskListSection reads everything from context directly.
-//   The component tree is FLAT from App's perspective — no prop chains.
+// WHY THE CHANGE?
+// The filter is now URL state (useSearchParams in TasksPage).
+// URL state should be owned by the page/route component — it's page-level state.
+// TaskListSection is a component within the page — it receives the filter
+// as a prop, just like any other piece of data it needs to display.
 //
-// NOTE: TaskCard still receives individual task props.
-// Passing the whole task object and individual handlers is intentional:
-//   - TaskCard remains a "dumb" component — testable without context
-//   - Individual props enable React.memo comparison (primitives)
-//   - Context is for SHARED state, not for replacing all prop passing
+// This is an important architectural decision:
+//   Context: app-wide state that many unrelated components need
+//   URL state (useSearchParams): page-level state that should be bookmarkable
+//   Props: data passed from parent to child within a page
+//   Local state: data only one component needs
+//
+// PROPS RECEIVED:
+//   activeFilter   (string)   — current filter value from URL
+//   onFilterChange (function) — updates URL query param
 
 import { memo } from 'react'
-import { useTasks, useTaskDispatch, useFilter } from '../context/TaskContext'
-import TaskCard from './TaskCard'
+import { Link } from 'react-router-dom'
+import { useTasks, useTaskDispatch } from '../context/TaskContext'
 import FilterBar from './FilterBar'
 import Section from './Section'
+import StatusBadge from './StatusBadge'
+import PriorityIndicator from './PriorityIndicator'
+import useRenderCount from '../hooks/useRenderCount'
 
-// memo: TaskListSection itself is lightweight — its children (TaskCards) are memo'd
-function TaskListSection() {
-  // Reading from three separate contexts — each subscription is independent.
-  // A theme change will NOT cause this component to re-render.
-  // A filter change will ONLY cause this component to re-render (and FilterBar).
-  const { visibleTasks }                  = useTasks()
-  const { deleteTask, updateTaskStatus }  = useTaskDispatch()
-  const { activeFilter, setActiveFilter } = useFilter()
+// Inline TaskCard row — links to the detail page
+const TaskRow = memo(function TaskRow({
+  id, title, status, priority, phase, onDelete, onStatusChange
+}) {
+  const renderCount = useRenderCount()
+  const STATUS_CYCLE = ['todo', 'in-progress', 'done']
+
+  function handleStatusClick(e) {
+    e.preventDefault()  // prevent navigation — we handle the click
+    e.stopPropagation()
+    const idx = STATUS_CYCLE.indexOf(status)
+    onStatusChange(id, STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length])
+  }
+
+  function handleDelete(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (window.confirm(`Delete task?`)) onDelete(id)
+  }
 
   return (
-    <Section title="My Tasks" count={visibleTasks.length}>
+    <Link to={`/tasks/${id}`} className={`task-card task-card-${status}`}>
+      <div className="task-card-header">
+        <h3 className="task-title">{title}</h3>
+        <div className="task-card-actions">
+          <button className="status-cycle-btn" onClick={handleStatusClick} title="Cycle status">
+            <StatusBadge status={status} />
+          </button>
+          <button className="btn-delete" onClick={handleDelete} title="Delete" aria-label="Delete task">✕</button>
+        </div>
+      </div>
+      <div className="task-card-footer">
+        <span className="task-phase">Phase {phase}</span>
+        <PriorityIndicator level={priority} />
+        {import.meta.env.DEV && (
+          <span className="render-count" title="Render count">renders: {renderCount}</span>
+        )}
+      </div>
+    </Link>
+  )
+})
 
+function TaskListSection({ activeFilter, onFilterChange }) {
+  const { visibleTasks }                 = useTasks()
+  const { deleteTask, updateTaskStatus } = useTaskDispatch()
+
+  // Compute filtered tasks from context's visibleTasks based on URL filter
+  const filtered = activeFilter === 'all'
+    ? visibleTasks
+    : visibleTasks.filter(t => t.status === activeFilter)
+
+  return (
+    <Section title="My Tasks" count={filtered.length}>
       <FilterBar
         activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
+        onFilterChange={onFilterChange}
       />
-
       <div className="task-grid">
-        {visibleTasks.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="empty-state">
             <p>No tasks match this filter.</p>
           </div>
         ) : (
-          visibleTasks.map(task => (
-            <TaskCard
+          filtered.map(task => (
+            <TaskRow
               key={task.id}
               id={task.id}
               title={task.title}
@@ -56,14 +101,12 @@ function TaskListSection() {
               status={task.status}
               priority={task.priority}
               phase={task.phase}
-              // Dispatch functions from context — stable via useCallback
               onDelete={deleteTask}
               onStatusChange={updateTaskStatus}
             />
           ))
         )}
       </div>
-
     </Section>
   )
 }

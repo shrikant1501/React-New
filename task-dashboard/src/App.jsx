@@ -1,71 +1,71 @@
-// App.jsx — Phase 7: A pure layout shell. Zero state. Zero props passed down.
+// App.jsx — Phase 8: Route configuration.
+// App now defines the route tree instead of direct layout.
+// BrowserRouter is in main.jsx — App defines what renders at each URL.
 //
-// BEFORE (Phase 6): App owned everything:
-//   - tasks state, filter state
-//   - stats computation, visibleTasks computation
-//   - all handler functions
-//   - passed everything down as props through 2-3 levels
-//   - 200+ lines of logic mixed with layout
+// ROUTE TREE:
+//   /               → redirect to /tasks
+//   /tasks          → DashboardLayout > TasksPage        (nested route)
+//   /tasks/:taskId  → DashboardLayout > TaskDetailPage   (nested route)
+//   /settings       → DashboardLayout > SettingsPage     (nested route)
+//   *               → NotFoundPage                        (catch-all)
 //
-// AFTER (Phase 7): App owns nothing:
-//   - No useState, no useMemo, no useCallback
-//   - No props passed to children
-//   - Just layout structure
-//   - State lives in TaskProvider (context/TaskContext.jsx)
-//   - Components read what they need directly from context
-//   - App is now just a skeleton — the layout blueprint
+// NESTED ROUTES EXPLAINED:
+// Routes /tasks, /tasks/:taskId, and /settings all share DashboardLayout.
+// DashboardLayout renders Header + Sidebar + <Outlet />.
+// <Outlet /> is where the child route component (TasksPage, etc.) renders.
+// When navigating between these routes, DashboardLayout STAYS mounted —
+// only the content inside <Outlet /> changes.
 //
-// THIS IS THE POWER OF CONTEXT:
-// App went from a 200-line "God component" to a clean 30-line layout.
-// Each child component is now self-sufficient.
-// Adding a new page/section requires ZERO changes to App.
+// This is why Header doesn't flash, Sidebar doesn't disappear, and
+// any sidebar animations don't reset on navigation.
 
-import Header from './components/Header'
-import StatsSection from './components/StatsSection'
-import AddTaskSection from './components/AddTaskSection'
-import TaskListSection from './components/TaskListSection'
-import ResetSection from './components/ResetSection'
-import LifecycleDemo from './components/LifecycleDemo'
-import { useState } from 'react'
-import './App.css'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import DashboardLayout from './components/DashboardLayout'
+import TasksPage from './pages/TasksPage'
+import TaskDetailPage from './pages/TaskDetailPage'
+import SettingsPage from './pages/SettingsPage'
+import NotFoundPage from './pages/NotFoundPage'
 
 function App() {
-  // App only owns purely local UI state — things no other component needs.
-  // The lifecycle demo toggle is a good example: it's App's own UI preference,
-  // not shared data. Local state (useState) is still the right tool here.
-  const [showLifecycleDemo, setShowLifecycleDemo] = useState(false)
-
   return (
-    <>
-      {/* Header reads from TaskContext and ThemeContext directly */}
-      <Header />
+    <Routes>
+      {/*
+        Redirect root to /tasks.
+        <Navigate> is the declarative equivalent of calling navigate() in code.
+        replace: don't add '/' to history — back button won't return to '/'
+      */}
+      <Route path="/" element={<Navigate to="/tasks" replace />} />
 
-      <main className="main-content">
+      {/*
+        Layout route: path="/*" means "this route handles all sub-paths".
+        DashboardLayout renders for ALL paths starting with /.
+        Its <Outlet /> renders the matched child route.
+      */}
+      <Route element={<DashboardLayout />}>
 
-        {/* Each section component reads its own data from context */}
-        <StatsSection />
+        {/* /tasks — the main tasks list */}
+        <Route path="/tasks" element={<TasksPage />} />
 
-        <AddTaskSection />
+        {/*
+          /tasks/:taskId — individual task detail
+          :taskId is a URL parameter — accessible via useParams() in TaskDetailPage
+          e.g. /tasks/42 → useParams() returns { taskId: "42" }
+        */}
+        <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
 
-        <div className="lifecycle-toggle-row">
-          <label className="lifecycle-toggle-label">
-            <input
-              type="checkbox"
-              checked={showLifecycleDemo}
-              onChange={e => setShowLifecycleDemo(e.target.checked)}
-            />
-            <span>Show Lifecycle Visualiser</span>
-          </label>
-        </div>
-        {showLifecycleDemo && <LifecycleDemo />}
+        {/* /settings */}
+        <Route path="/settings" element={<SettingsPage />} />
 
-        {/* TaskListSection reads tasks, filter, and dispatch from context */}
-        <TaskListSection />
+      </Route>
 
-        <ResetSection />
+      {/*
+        Catch-all — matches any URL not matched by routes above.
+        Place LAST — React Router tries routes in order, top to bottom.
+        If this were first, it would match everything.
+      */}
+      <Route path="*" element={<NotFoundPage />} />
 
-      </main>
-    </>
+    </Routes>
   )
 }
 

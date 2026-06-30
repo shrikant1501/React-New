@@ -20,6 +20,7 @@
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { TaskProvider } from './context/TaskContext'
 import App from './App.jsx'
@@ -27,10 +28,17 @@ import './index.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ThemeProvider>
-      <TaskProvider>
-        <App />
-      </TaskProvider>
-    </ThemeProvider>
+    {/*
+      BrowserRouter MUST wrap everything that uses routing (Routes, Link, useNavigate, etc.)
+      It provides the routing context. Placed at the root — above our own providers.
+      Order: BrowserRouter > ThemeProvider > TaskProvider > App
+    */}
+    <BrowserRouter>
+      <ThemeProvider>
+        <TaskProvider>
+          <App />
+        </TaskProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   </StrictMode>,
 )
