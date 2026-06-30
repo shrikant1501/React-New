@@ -79,7 +79,10 @@ const TaskRow = memo(function TaskRow({
 
 // ─── TaskListSection ──────────────────────────────────────────────────────────
 
-function TaskListSection({ activeFilter, onFilterChange, isLoading = false }) {
+// isPending: from useTransition in TasksPage — true while filter re-render is running.
+// We dim the task grid to signal to the user that content is updating.
+// This is the standard pattern for useTransition visual feedback.
+function TaskListSection({ activeFilter, onFilterChange, isLoading = false, isPending = false }) {
   const { visibleTasks }                 = useTasks()
   const { deleteTask, updateTaskStatus } = useTaskDispatch()
 
@@ -94,7 +97,8 @@ function TaskListSection({ activeFilter, onFilterChange, isLoading = false }) {
         onFilterChange={onFilterChange}
       />
 
-      <div className="task-grid">
+      {/* Dim the grid while a transition is pending — isPending from useTransition */}
+      <div className="task-grid" style={{ opacity: isPending ? 0.6 : 1, transition: 'opacity 0.2s' }}>
         {/* Loading state — show 4 skeleton cards on first fetch */}
         {isLoading ? (
           <>

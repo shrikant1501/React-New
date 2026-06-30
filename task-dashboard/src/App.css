@@ -1129,3 +1129,58 @@ a.task-card:hover {
   gap: 0.75rem;
 }
 
+
+/* ─── Phase 13: ErrorBoundary + PageLoader ───────────────────────────────── */
+
+/* Full-screen centred error UI (from ErrorBoundary) */
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 2rem;
+}
+
+.error-boundary-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 400px;
+}
+
+.error-boundary-icon { font-size: 2.5rem; line-height: 1; }
+
+.error-boundary-content h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.error-boundary-message {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Full-screen centred spinner (Suspense fallback during lazy chunk load) */
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.page-loader-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
