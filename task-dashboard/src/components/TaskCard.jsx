@@ -1,44 +1,47 @@
-// TaskCard.jsx — Phase 3: Now interactive.
-// Added: delete button, clickable status badge to cycle status.
+// TaskCard.jsx — Phase 6: Wrapped with React.memo for performance optimisation.
 //
-// PROPS RECEIVED:
-//   id          (number)   — unique task identifier
-//   title       (string)   — task title
-//   description (string)   — task description
-//   status      (string)   — "todo" | "in-progress" | "done"
-//   priority    (string)   — "low" | "medium" | "high"
-//   phase       (number)   — which learning phase this task belongs to
-//   onDelete    (function) — callback: parent removes this task by id
-//   onStatusChange (function) — callback: parent updates this task's status
+// WHY React.memo HERE?
+// TaskCard is rendered once per task — currently 6+ instances.
+// When App re-renders (e.g., filter changes), ALL TaskCards re-rendered by default.
+// Since a filter change doesn't affect task data, those re-renders are wasted.
+// React.memo skips re-renders when all props are shallowly equal.
 //
-// KEY CONCEPTS:
-//   - Callback props for child→parent communication
-//   - Event handling (onClick)
-//   - No state here — this component is still presentational
-//     The TASK DATA lives in App. TaskCard just displays it and signals events.
+// FOR React.memo TO WORK, the parent (App) must provide STABLE prop references:
+//   - title, description, status, priority, phase → primitives → stable ✅
+//   - id → primitive → stable ✅
+//   - onDelete, onStatusChange → functions → UNSTABLE unless useCallback ✅ (done in App)
+//
+// RENDER COUNT INDICATOR (development only):
+// We use useRenderCount to display how many times this component has rendered.
+// This makes it VISUALLY obvious when memoisation is working vs not working.
+// Without optimisation: all 6 cards increment on every App re-render.
+// With optimisation: only the changed card increments.
 
+import { memo } from 'react'
 import StatusBadge from './StatusBadge'
 import PriorityIndicator from './PriorityIndicator'
+import useRenderCount from '../hooks/useRenderCount'
 
-// Status cycle order — clicking badge cycles through these in order
 const STATUS_CYCLE = ['todo', 'in-progress', 'done']
 
-function TaskCard({ id, title, description, status, priority, phase, onDelete, onStatusChange }) {
+// memo() wraps the component. React will shallow-compare props before re-rendering.
+// If all props pass Object.is() comparison → render is SKIPPED.
+// Note: memo wraps the whole component, not individual renders inside it.
+const TaskCard = memo(function TaskCard({
+  id, title, description, status, priority, phase, onDelete, onStatusChange
+}) {
+  // ── Development: render count tracker ─────────────────────────────────────
+  // This hook uses useRef internally — incrementing doesn't trigger re-renders.
+  // Remove this in production (or hide behind an env variable check).
+  const renderCount = useRenderCount()
 
   function handleStatusClick() {
-    // Calculate the next status in the cycle
     const currentIndex = STATUS_CYCLE.indexOf(status)
-    const nextIndex = (currentIndex + 1) % STATUS_CYCLE.length
-    const nextStatus = STATUS_CYCLE[nextIndex]
-
-    // Call the parent's callback with this task's id and the new status
-    // TaskCard does NOT update state itself — it notifies the parent.
-    // The parent owns the data; the parent decides what to do with the event.
-    onStatusChange(id, nextStatus)
+    const nextIndex    = (currentIndex + 1) % STATUS_CYCLE.length
+    onStatusChange(id, STATUS_CYCLE[nextIndex])
   }
 
   function handleDelete() {
-    // Confirm before deleting — good UX practice
     if (window.confirm(`Delete "${title}"?`)) {
       onDelete(id)
     }
@@ -51,12 +54,6 @@ function TaskCard({ id, title, description, status, priority, phase, onDelete, o
         <h3 className="task-title">{title}</h3>
 
         <div className="task-card-actions">
-          {/*
-            StatusBadge is now wrapped in a button for accessibility.
-            Clicking it cycles the status: todo → in-progress → done → todo
-            We pass onClick to the wrapper button, not to StatusBadge itself.
-            StatusBadge remains purely presentational — it doesn't know about clicking.
-          */}
           <button
             className="status-cycle-btn"
             onClick={handleStatusClick}
@@ -65,7 +62,6 @@ function TaskCard({ id, title, description, status, priority, phase, onDelete, o
             <StatusBadge status={status} />
           </button>
 
-          {/* Delete button — calls handleDelete which calls onDelete(id) */}
           <button
             className="btn-delete"
             onClick={handleDelete}
@@ -82,10 +78,25 @@ function TaskCard({ id, title, description, status, priority, phase, onDelete, o
       <div className="task-card-footer">
         <span className="task-phase">Phase {phase}</span>
         <PriorityIndicator level={priority} />
+
+        {/* Render counter — visible proof of memoisation working */}
+        {import.meta.env.DEV && (
+          <span
+            className="render-count"
+            title="Number of times this component has rendered"
+          >
+            renders: {renderCount}
+          </span>
+        )}
+        {/*
+          import.meta.env.DEV — Vite's way of checking if we're in development.
+          This entire span is REMOVED from the production bundle by Vite's tree-shaker.
+          It only appears during development — exactly what we want.
+        */}
       </div>
 
     </div>
   )
-}
+})
 
 export default TaskCard

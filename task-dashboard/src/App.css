@@ -541,3 +541,17 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+
+/* ─── Render Counter (dev only) ──────────────────────── */
+
+.render-count {
+  font-size: 0.6rem;
+  color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+  font-family: monospace;
+  letter-spacing: 0.3px;
+}
+

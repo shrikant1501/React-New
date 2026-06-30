@@ -1,19 +1,14 @@
-// FilterBar.jsx
-// Renders filter buttons: All / Todo / In Progress / Done
-// Demonstrates:
-//   - Receiving state + setter as props (lifted state pattern)
-//   - Conditional className based on active filter
-//   - Iterating over a config array to render buttons (DRY principle)
+// FilterBar.jsx — Phase 6: Wrapped with React.memo.
+// activeFilter is a primitive string → stable comparison ✅
+// onFilterChange is passed via useCallback from App → stable reference ✅
+// Result: FilterBar only re-renders when the active filter actually changes.
+// When tasks are added/deleted (App re-renders), FilterBar is SKIPPED.
 //
 // PROPS RECEIVED:
-//   activeFilter  (string)   — the currently active filter value
-//   onFilterChange (function) — callback: called with the new filter value when clicked
-//
-// NOTE ON STATE OWNERSHIP:
-// FilterBar does NOT own the filter state. The state lives in App (Phase 3).
-// FilterBar only receives the current value and a way to change it.
-// This is "lifting state up" — the state lives at the lowest common ancestor
-// that needs it (App needs it to filter the task list AND pass it here).
+//   activeFilter   (string)   — the currently active filter value
+//   onFilterChange (function) — callback (useCallback-stabilised in App)
+
+import { memo } from 'react'
 
 const FILTERS = [
   { label: 'All',         value: 'all' },
@@ -22,7 +17,7 @@ const FILTERS = [
   { label: 'Done',        value: 'done' },
 ]
 
-function FilterBar({ activeFilter, onFilterChange }) {
+const FilterBar = memo(function FilterBar({ activeFilter, onFilterChange }) {
   return (
     <div className="filter-bar">
       {FILTERS.map(filter => (
@@ -42,6 +37,6 @@ function FilterBar({ activeFilter, onFilterChange }) {
       ))}
     </div>
   )
-}
+})
 
 export default FilterBar

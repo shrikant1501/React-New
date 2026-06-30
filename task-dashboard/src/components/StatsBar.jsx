@@ -1,10 +1,8 @@
-// StatsBar.jsx
-// Displays live task counts grouped by status.
-// This component is PURELY presentational — it receives computed numbers
-// as props and just renders them. It holds no state of its own.
-//
-// This is a key architectural pattern: separate "smart" components
-// (that own state) from "dumb" / presentational components (that only display).
+// StatsBar.jsx — Phase 6: Wrapped with React.memo.
+// All props are primitives (numbers) → memo comparison is always reliable.
+// StatsBar should ONLY re-render when the actual counts change.
+// With memo: a filter change in App will NOT cause StatsBar to re-render —
+// because total/done/inProgress/todo are unchanged when only the filter changes.
 //
 // PROPS RECEIVED:
 //   total       (number) — total task count
@@ -12,7 +10,9 @@
 //   inProgress  (number) — in-progress tasks
 //   todo        (number) — not started tasks
 
-function StatsBar({ total, done, inProgress, todo }) {
+import { memo } from 'react'
+
+const StatsBar = memo(function StatsBar({ total, done, inProgress, todo }) {
   return (
     <div className="stats-bar">
       <div className="stat-item">
@@ -34,6 +34,6 @@ function StatsBar({ total, done, inProgress, todo }) {
       </div>
     </div>
   )
-}
+})
 
 export default StatsBar
