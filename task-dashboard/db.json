@@ -1,0 +1,84 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Learn React Basics",
+      "status": "done",
+      "priority": "high",
+      "phase": 1,
+      "description": "JSX, components, props — the building blocks of every React app."
+    },
+    {
+      "id": 2,
+      "title": "Understand useState",
+      "status": "done",
+      "priority": "high",
+      "phase": 3,
+      "description": "State triggers re-renders. Immutability is key."
+    },
+    {
+      "id": 3,
+      "title": "Master useEffect",
+      "status": "done",
+      "priority": "high",
+      "phase": 4,
+      "description": "Side effects, cleanup, and the dependency array."
+    },
+    {
+      "id": 4,
+      "title": "Learn useRef",
+      "status": "done",
+      "priority": "medium",
+      "phase": 5,
+      "description": "Refs for DOM access and mutable values that don't trigger re-renders."
+    },
+    {
+      "id": 5,
+      "title": "Performance with useMemo and useCallback",
+      "status": "done",
+      "priority": "medium",
+      "phase": 6,
+      "description": "Memoisation, reference equality, and React.memo."
+    },
+    {
+      "id": 6,
+      "title": "Context API",
+      "status": "done",
+      "priority": "high",
+      "phase": 7,
+      "description": "Global state without prop drilling. Split contexts for performance."
+    },
+    {
+      "id": 7,
+      "title": "React Router",
+      "status": "done",
+      "priority": "high",
+      "phase": 8,
+      "description": "Client-side routing, nested routes, useParams, useSearchParams."
+    },
+    {
+      "id": 8,
+      "title": "API Integration",
+      "status": "in-progress",
+      "priority": "high",
+      "phase": 9,
+      "description": "fetch, axios, React Query — connecting React to a real backend."
+    },
+    {
+      "id": 9,
+      "title": "Authentication",
+      "status": "todo",
+      "priority": "high",
+      "phase": 10,
+      "description": "JWT, AuthContext, interceptors, private routes."
+    },
+    {
+      "id": 10,
+      "title": "Testing with RTL",
+      "status": "todo",
+      "priority": "medium",
+      "phase": 14,
+      "description": "Jest and React Testing Library — confidence that code works."
+    }
+  ]
+}

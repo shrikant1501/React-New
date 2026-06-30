@@ -1,16 +1,16 @@
-// components/StatsSection.jsx
-// Reads stats from TaskStateContext and renders the StatsBar.
-// Zero props needed from parent — demonstrates context consumer pattern.
-//
-// Before Context: App computed stats and passed total, done, inProgress, todo
-// After Context:  StatsSection reads from useTasks() directly.
-// The App component no longer needs to know stats exist at all.
+// components/StatsSection.jsx — Phase 9
+// Now handles isLoading (first fetch) and isError states from React Query.
 
 import { useTasks } from '../context/TaskContext'
 import StatsBar from './StatsBar'
 
 function StatsSection() {
-  const { stats } = useTasks()
+  // isLoading: true only on the FIRST fetch (no cache yet)
+  // After first load, React Query serves from cache while refetching in background
+  const { stats, isLoading, isError } = useTasks()
+
+  if (isLoading) return <div className="loading-bar">Loading tasks…</div>
+  if (isError)   return <div className="error-bar">Failed to load stats.</div>
 
   return (
     <StatsBar

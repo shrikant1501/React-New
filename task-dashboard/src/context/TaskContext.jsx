@@ -1,227 +1,168 @@
-// context/TaskContext.jsx
-// Provides task state and operations to any component in the tree.
-// Eliminates prop drilling by making data available globally.
+// context/TaskContext.jsx — Phase 9: Migrated to React Query.
 //
-// ARCHITECTURE DECISIONS:
+// WHAT CHANGED FROM PHASE 7/8:
+// ─────────────────────────────
+// Before: Tasks lived in useState + localStorage inside this context.
+//         This file managed: task array, CRUD operations, localStorage persistence.
 //
-// 1. SPLIT CONTEXTS — we use two separate contexts:
-//    TaskStateContext    — the tasks array (changes on every mutation)
-//    TaskDispatchContext — the action functions (NEVER change — stable setters)
+// After:  Tasks live on the SERVER (json-server / Spring Boot).
+//         React Query owns the cache and all fetching logic.
+//         This context now only provides:
+//           - A thin wrapper so components don't import React Query directly
+//           - Derived/computed values (stats, visibleTasks)
+//           - Mutation functions (create, update, delete) that call the API
 //
-//    WHY SPLIT?
-//    A component that only needs to trigger actions (e.g., AddTaskForm) should
-//    subscribe to TaskDispatchContext only. It will NEVER re-render due to task
-//    data changes. If we put everything in one context, every subscriber
-//    re-renders on every task change — including action-only components.
+// WHY KEEP CONTEXT AT ALL?
+// React Query's useQuery/useMutation can be called directly in components.
+// We keep context for two reasons:
+//   1. Components don't need to know about React Query — they just call useTasks()
+//   2. Computed values (stats) are derived once here, not in every component
 //
-// 2. CUSTOM HOOKS — useTasks() and useTaskDispatch() wrap useContext.
-//    Benefits:
-//      a) Consumer components don't import the raw context object
-//      b) Clear error message if used outside the Provider
-//      c) Logic can be added here without changing all consumers
+// SPLIT CONTEXT PATTERN (from Phase 7) is maintained:
+//   TaskStateContext   → tasks data, stats, loading, error (read-only)
+//   TaskDispatchContext → mutation functions (write-only)
 //
-// 3. PROVIDER PATTERN — TaskProvider owns all state and provides it.
-//    App.jsx becomes a pure layout shell — no state, no handlers.
-//    State responsibility is co-located with the context that provides it.
+// This prevents components that only write (AddTaskForm) from re-rendering
+// when the task list changes.
 
-import { createContext, useContext, useState, useMemo, useCallback } from 'react'
-import useLocalStorage from '../hooks/useLocalStorage'
-import useDocumentTitle from '../hooks/useDocumentTitle'
+import { createContext, useContext, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { taskApi } from '../services/taskApi'
 
-// ─── Context Objects ──────────────────────────────────────────────────────────
-// createContext(defaultValue):
-//   defaultValue is ONLY used when a component reads the context without a
-//   Provider anywhere above it in the tree. In practice this means: when the
-//   component is rendered outside of TaskProvider (e.g., in a test or storybook).
-//   null is a safe default — our custom hook throws a clear error in this case.
+// ─── Contexts ────────────────────────────────────────────────────────────────
 
 const TaskStateContext    = createContext(null)
 const TaskDispatchContext = createContext(null)
-const FilterContext       = createContext(null)
 
-// ─── Initial Data ─────────────────────────────────────────────────────────────
-const INITIAL_TASKS = [
-  {
-    id: 1,
-    title: 'Set up Vite + React project',
-    description: 'Initialize the project, understand the folder structure, and build the first static components.',
-    status: 'done', priority: 'high', phase: 1,
-  },
-  {
-    id: 2,
-    title: 'Learn JSX and Components',
-    description: 'Understand JSX compilation, component rules, the Virtual DOM, and how React renders to the browser.',
-    status: 'done', priority: 'high', phase: 1,
-  },
-  {
-    id: 3,
-    title: 'Master Props and Data Flow',
-    description: 'Learn how to pass data between components using props, destructuring, default values, and the children pattern.',
-    status: 'done', priority: 'high', phase: 2,
-  },
-  {
-    id: 4,
-    title: 'Understand useState Hook',
-    description: 'Add interactivity with state — make the task dashboard respond to user actions.',
-    status: 'done', priority: 'high', phase: 3,
-  },
-  {
-    id: 5,
-    title: 'Explore useEffect and Lifecycle',
-    description: 'Learn about side effects — localStorage persistence, document title, cleanup functions.',
-    status: 'done', priority: 'high', phase: 4,
-  },
-  {
-    id: 6,
-    title: 'useRef, Forms, and Controlled Components',
-    description: 'Master the mutable box, DOM access, form validation, and the controlled vs uncontrolled distinction.',
-    status: 'done', priority: 'high', phase: 5,
-  },
-  {
-    id: 7,
-    title: 'Performance: useMemo, useCallback, React.memo',
-    description: 'Learn when and how to prevent unnecessary re-renders using memoisation tools.',
-    status: 'done', priority: 'high', phase: 6,
-  },
-  {
-    id: 8,
-    title: 'Context API and State Management',
-    description: 'Avoid prop drilling with React Context; understand global vs local state boundaries.',
-    status: 'in-progress', priority: 'high', phase: 7,
-  },
-  {
-    id: 9,
-    title: 'React Router — Navigation',
-    description: 'Add multi-page navigation, nested routes, and route parameters.',
-    status: 'todo', priority: 'medium', phase: 8,
-  },
-]
+// ─── Query Keys ──────────────────────────────────────────────────────────────
+// Query keys are the cache identifiers React Query uses.
+// Same key = same cache entry. All components using ['tasks'] share one fetch.
+// Using a constant prevents typos and makes refactoring easy.
+export const TASK_KEYS = {
+  all:    ['tasks'],
+  detail: (id) => ['tasks', id],
+}
 
-// ─── Provider Component ───────────────────────────────────────────────────────
-// TaskProvider is the "smart" component — it owns state and provides it.
-// It renders THREE providers, each broadcasting a slice of the data.
-// Children can subscribe to exactly the slice they need.
+// ─── TaskProvider ─────────────────────────────────────────────────────────────
 
 export function TaskProvider({ children }) {
-  const [tasks, setTasks]               = useLocalStorage('tasks', INITIAL_TASKS)
-  const [activeFilter, setActiveFilter] = useState('all')
+  const queryClient = useQueryClient()
 
-  // ── Derived: stats ───────────────────────────────────────────────────────
+  // ── Fetch all tasks ────────────────────────────────────────────────────────
+  // useQuery handles: fetching, caching, background refetch, loading/error state.
+  // On mount: checks cache first. If stale/empty, calls taskApi.getAll().
+  // On window focus: refetches in background if data is stale.
+  const {
+    data: tasks = [],   // default to [] so map() never fails before data arrives
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: TASK_KEYS.all,       // cache key — ['tasks']
+    queryFn:  taskApi.getAll,      // the function that fetches data
+  })
+
+  // ── Derived / computed values ──────────────────────────────────────────────
+  // Computed once here — all consumers get the same memoised values.
   const stats = useMemo(() => ({
     total:      tasks.length,
-    done:       tasks.filter(t => t.status === 'done').length,
-    inProgress: tasks.filter(t => t.status === 'in-progress').length,
     todo:       tasks.filter(t => t.status === 'todo').length,
+    inProgress: tasks.filter(t => t.status === 'in-progress').length,
+    done:       tasks.filter(t => t.status === 'done').length,
   }), [tasks])
 
-  // ── Derived: visible tasks ───────────────────────────────────────────────
+  // visibleTasks: sorted by id descending (newest first)
   const visibleTasks = useMemo(() =>
-    activeFilter === 'all'
-      ? tasks
-      : tasks.filter(t => t.status === activeFilter),
-    [tasks, activeFilter]
-  )
+    [...tasks].sort((a, b) => b.id - a.id),
+  [tasks])
 
-  // ── Document title ───────────────────────────────────────────────────────
-  useDocumentTitle(
-    stats.todo > 0 ? `(${stats.todo} todo) Task Dashboard` : 'Task Dashboard'
-  )
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  // useMutation: for POST/PUT/PATCH/DELETE operations.
+  // onSuccess: invalidateQueries tells React Query the cache is stale →
+  //            automatically refetches tasks → UI updates with fresh server data.
 
-  // ── Action handlers ──────────────────────────────────────────────────────
-  // useCallback ensures these are stable references.
-  // They go into TaskDispatchContext — which NEVER changes, so consumers
-  // of dispatch context NEVER re-render due to task data changes.
+  const addMutation = useMutation({
+    mutationFn: taskApi.create,
+    onSuccess: () => {
+      // Invalidate the tasks cache — React Query refetches automatically
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all })
+    },
+  })
 
-  const addTask = useCallback((taskData) => {
-    setTasks(prev => [...prev, {
-      ...taskData,
-      id: Date.now(),
-      phase: 7,
-    }])
-  }, [setTasks])
+  const updateStatusMutation = useMutation({
+    // mutationFn receives the argument passed to mutation.mutate()
+    mutationFn: ({ id, status }) => taskApi.patch(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all })
+    },
+  })
 
-  const deleteTask = useCallback((taskId) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId))
-  }, [setTasks])
+  const deleteMutation = useMutation({
+    mutationFn: taskApi.remove,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all })
+    },
+  })
 
-  const updateTaskStatus = useCallback((taskId, newStatus) => {
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, status: newStatus } : t
-    ))
-  }, [setTasks])
+  const resetMutation = useMutation({
+    // Reset: delete all tasks one by one, then re-seed with initial data.
+    // In a real app this would be a single POST /tasks/reset endpoint.
+    mutationFn: async () => {
+      // Delete all current tasks in parallel
+      await Promise.all(tasks.map(t => taskApi.remove(t.id)))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all })
+    },
+  })
 
-  const resetTasks = useCallback(() => {
-    if (window.confirm('Reset all tasks to initial state?')) {
-      setTasks(INITIAL_TASKS)
-    }
-  }, [setTasks])
+  // ── Dispatch functions (stable API for consumers) ──────────────────────────
+  // Wrap mutation.mutate() in named functions — components stay clean.
+  // useCallback not needed here: these functions are recreated on render,
+  // but TaskDispatchContext value is memoised below — only changes if
+  // the mutation objects change (they don't between renders).
 
-  // ── Context values ───────────────────────────────────────────────────────
-  // useMemo on context values prevents ALL consumers from re-rendering
-  // just because the TaskProvider's parent re-rendered.
-  // Without useMemo: { tasks, stats, visibleTasks } is a new object every render
-  // → all TaskStateContext consumers re-render (even if tasks didn't change)
+  const dispatch = useMemo(() => ({
+    addTask: (taskData) => addMutation.mutate(taskData),
+    updateTaskStatus: (id, status) => updateStatusMutation.mutate({ id, status }),
+    deleteTask: (id) => deleteMutation.mutate(id),
+    resetTasks: () => resetMutation.mutate(),
+    // Expose mutation states so UI can show per-action loading/error
+    isAdding:   addMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+  }), [addMutation, updateStatusMutation, deleteMutation, resetMutation])
 
+  // ── State context value ────────────────────────────────────────────────────
   const stateValue = useMemo(() => ({
     tasks,
-    stats,
     visibleTasks,
-  }), [tasks, stats, visibleTasks])
-
-  // Dispatch value: NEVER changes because all functions are useCallback'd
-  // and setters are stable. This object is created once.
-  const dispatchValue = useMemo(() => ({
-    addTask,
-    deleteTask,
-    updateTaskStatus,
-    resetTasks,
-  }), [addTask, deleteTask, updateTaskStatus, resetTasks])
-
-  const filterValue = useMemo(() => ({
-    activeFilter,
-    setActiveFilter,
-  }), [activeFilter, setActiveFilter])
+    stats,
+    isLoading,    // true on first fetch (no cached data yet)
+    isError,
+    error,
+  }), [tasks, visibleTasks, stats, isLoading, isError, error])
 
   return (
-    // Three providers nested — each child subscribes to the slice it needs.
-    // Nesting order doesn't affect functionality.
     <TaskStateContext.Provider value={stateValue}>
-      <TaskDispatchContext.Provider value={dispatchValue}>
-        <FilterContext.Provider value={filterValue}>
-          {children}
-        </FilterContext.Provider>
+      <TaskDispatchContext.Provider value={dispatch}>
+        {children}
       </TaskDispatchContext.Provider>
     </TaskStateContext.Provider>
   )
 }
 
-// ─── Custom Hooks (Consumer API) ──────────────────────────────────────────────
-// These are the ONLY way components should access context.
-// They never import the raw context objects — those stay private to this file.
+// ─── Custom Hooks ─────────────────────────────────────────────────────────────
+// Components import these — never the raw contexts.
+// If we change the internal implementation, only this file changes.
 
-// Provides: { tasks, stats, visibleTasks }
 export function useTasks() {
-  const context = useContext(TaskStateContext)
-  if (context === null) {
-    throw new Error('useTasks must be used within a <TaskProvider>')
-  }
-  return context
+  const ctx = useContext(TaskStateContext)
+  if (!ctx) throw new Error('useTasks must be used inside TaskProvider')
+  return ctx
 }
 
-// Provides: { addTask, deleteTask, updateTaskStatus, resetTasks }
 export function useTaskDispatch() {
-  const context = useContext(TaskDispatchContext)
-  if (context === null) {
-    throw new Error('useTaskDispatch must be used within a <TaskProvider>')
-  }
-  return context
-}
-
-// Provides: { activeFilter, setActiveFilter }
-export function useFilter() {
-  const context = useContext(FilterContext)
-  if (context === null) {
-    throw new Error('useFilter must be used within a <TaskProvider>')
-  }
-  return context
+  const ctx = useContext(TaskDispatchContext)
+  if (!ctx) throw new Error('useTaskDispatch must be used inside TaskProvider')
+  return ctx
 }

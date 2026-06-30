@@ -48,7 +48,7 @@ const INITIAL_VALUES = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function AddTaskForm({ onAddTask }) {
+function AddTaskForm({ onAddTask, isSubmitting = false }) {
   // ── useRef: DOM access for auto-focus ─────────────────────────────────────
   // We want to focus the title input when the form mounts.
   // We cannot do this in render (side effect) — it goes in useEffect.
@@ -85,11 +85,11 @@ function AddTaskForm({ onAddTask }) {
       description: validValues.description.trim(),
       priority:    validValues.priority,
       status:      'todo',
+      phase:       9,   // Phase 9 — tasks added from the UI belong to this phase
     })
     reset()
 
     // After reset, re-focus the title field for rapid task entry
-    // Small timeout gives React one render cycle to update the input value
     setTimeout(() => titleInputRef.current?.focus(), 0)
   })
 
@@ -188,12 +188,11 @@ function AddTaskForm({ onAddTask }) {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={touched.title && !isValid}
-          // Disabled only AFTER the user has touched the title field.
-          // Before that, allow the first submit attempt to show all errors.
-          // This prevents a confusing "why can't I click?" experience for new users.
+          disabled={(touched.title && !isValid) || isSubmitting}
+          // Also disabled while the POST request is in flight (isSubmitting)
+          // Prevents double-submission if the user clicks twice quickly.
         >
-          Add Task
+          {isSubmitting ? 'Adding…' : 'Add Task'}
         </button>
       </div>
 

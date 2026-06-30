@@ -891,3 +891,89 @@ a.task-card:hover {
   border-color: var(--color-primary);
 }
 
+
+/* ─── Phase 9: Loading / Error / Skeleton states ────── */
+
+/* Loading bar — shown above stats while first fetch is in flight */
+.loading-bar {
+  padding: 0.75rem 1rem;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+/* Error bar — shown if stats fetch fails */
+.error-bar {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+/* Full-page error state */
+.error-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  gap: 0.75rem;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.error-page h2 { font-size: 1.4rem; font-weight: 700; }
+.error-page p  { font-size: 0.9rem; color: var(--color-text-muted); }
+
+.error-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+.error-hint code {
+  background: rgba(99, 102, 241, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: var(--color-primary);
+}
+
+/* ─── Skeleton cards ─────────────────────────────────── */
+
+/* Shimmer animation — the sliding highlight effect */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+.skeleton-card {
+  pointer-events: none;     /* not clickable */
+  cursor: default;
+  min-height: 80px;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+/* Each skeleton line gets the shimmer gradient */
+.skeleton-line {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-surface) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+.skeleton-title    { height: 16px; width: 70%; }
+.skeleton-subtitle { height: 12px; width: 45%; margin-top: 0.5rem; }

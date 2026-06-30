@@ -1,24 +1,16 @@
-// components/TaskListSection.jsx — Phase 8: filter driven by URL query params.
+// components/TaskListSection.jsx — Phase 9
 //
-// CHANGE FROM PHASE 7:
-// Previously: read activeFilter from FilterContext (React state)
-// Now:        receives activeFilter + onFilterChange as props from TasksPage
+// CHANGES FROM PHASE 8:
+//   - Receives isLoading prop → shows skeleton cards during first fetch
+//   - onDelete and onStatusChange now call API mutations via context dispatch
+//     (the component API is unchanged — it still just calls the same functions)
+//   - TaskRow wraps Link — clicking navigates to /tasks/:id (unchanged)
 //
-// WHY THE CHANGE?
-// The filter is now URL state (useSearchParams in TasksPage).
-// URL state should be owned by the page/route component — it's page-level state.
-// TaskListSection is a component within the page — it receives the filter
-// as a prop, just like any other piece of data it needs to display.
-//
-// This is an important architectural decision:
-//   Context: app-wide state that many unrelated components need
-//   URL state (useSearchParams): page-level state that should be bookmarkable
-//   Props: data passed from parent to child within a page
-//   Local state: data only one component needs
-//
-// PROPS RECEIVED:
-//   activeFilter   (string)   — current filter value from URL
-//   onFilterChange (function) — updates URL query param
+// WHY THE COMPONENT LOOKS ALMOST IDENTICAL:
+// This is the power of the service layer + context pattern.
+// The API migration happened in TaskContext and taskApi.js.
+// TaskListSection doesn't know or care whether tasks come from
+// localStorage, a REST API, or a WebSocket — it just renders what it receives.
 
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
@@ -29,7 +21,19 @@ import StatusBadge from './StatusBadge'
 import PriorityIndicator from './PriorityIndicator'
 import useRenderCount from '../hooks/useRenderCount'
 
-// Inline TaskCard row — links to the detail page
+// ─── Skeleton Card — shown while tasks are loading ───────────────────────────
+// A skeleton mimics the shape of a real card with an animated shimmer.
+// Better UX than a spinner: user understands what's loading.
+function SkeletonCard() {
+  return (
+    <div className="task-card skeleton-card" aria-hidden="true">
+      <div className="skeleton-line skeleton-title" />
+      <div className="skeleton-line skeleton-subtitle" />
+    </div>
+  )
+}
+
+// ─── TaskRow — a single task displayed as a clickable card ───────────────────
 const TaskRow = memo(function TaskRow({
   id, title, status, priority, phase, onDelete, onStatusChange
 }) {
@@ -37,7 +41,7 @@ const TaskRow = memo(function TaskRow({
   const STATUS_CYCLE = ['todo', 'in-progress', 'done']
 
   function handleStatusClick(e) {
-    e.preventDefault()  // prevent navigation — we handle the click
+    e.preventDefault()     // stop Link navigation
     e.stopPropagation()
     const idx = STATUS_CYCLE.indexOf(status)
     onStatusChange(id, STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length])
@@ -46,14 +50,16 @@ const TaskRow = memo(function TaskRow({
   function handleDelete(e) {
     e.preventDefault()
     e.stopPropagation()
-    if (window.confirm(`Delete task?`)) onDelete(id)
+    if (window.confirm('Delete this task?')) onDelete(id)
   }
 
   return (
+    // The whole card is a Link — clicking anywhere navigates to detail page
     <Link to={`/tasks/${id}`} className={`task-card task-card-${status}`}>
       <div className="task-card-header">
         <h3 className="task-title">{title}</h3>
         <div className="task-card-actions">
+          {/* e.preventDefault + stopPropagation prevents the Link from firing */}
           <button className="status-cycle-btn" onClick={handleStatusClick} title="Cycle status">
             <StatusBadge status={status} />
           </button>
@@ -71,11 +77,12 @@ const TaskRow = memo(function TaskRow({
   )
 })
 
-function TaskListSection({ activeFilter, onFilterChange }) {
+// ─── TaskListSection ──────────────────────────────────────────────────────────
+
+function TaskListSection({ activeFilter, onFilterChange, isLoading = false }) {
   const { visibleTasks }                 = useTasks()
   const { deleteTask, updateTaskStatus } = useTaskDispatch()
 
-  // Compute filtered tasks from context's visibleTasks based on URL filter
   const filtered = activeFilter === 'all'
     ? visibleTasks
     : visibleTasks.filter(t => t.status === activeFilter)
@@ -86,8 +93,17 @@ function TaskListSection({ activeFilter, onFilterChange }) {
         activeFilter={activeFilter}
         onFilterChange={onFilterChange}
       />
+
       <div className="task-grid">
-        {filtered.length === 0 ? (
+        {/* Loading state — show 4 skeleton cards on first fetch */}
+        {isLoading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>No tasks match this filter.</p>
           </div>
