@@ -1,9 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // visualizer: generates dist/stats.html after `npm run build:analyze`
+    // Shows an interactive treemap of every module and its contribution to bundle size.
+    // Helps answer: "What's making my bundle large? Should I lazy-load X?"
+    // Only active when ANALYZE env var is set — not in normal builds.
+    process.env.ANALYZE && visualizer({
+      open:     true,      // auto-opens browser after build
+      filename: 'dist/stats.html',
+      gzipSize: true,      // show gzip sizes (what users actually download)
+      template: 'treemap', // treemap | sunburst | network
+    }),
+  ].filter(Boolean),
 
   // ── Vitest configuration ────────────────────────────────────────────────
   // Vitest reads test config from the same vite.config.js — no jest.config needed.

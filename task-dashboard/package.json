@@ -7,6 +7,7 @@
     "dev": "vite",
     "api": "json-server --watch db.json --port 3001",
     "build": "vite build",
+    "build:analyze": "cross-env ANALYZE=true vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
@@ -32,9 +33,11 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
+    "cross-env": "^10.1.0",
     "jsdom": "^29.1.1",
     "json-server": "^1.0.0-beta.15",
     "oxlint": "^1.71.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "vite": "^8.1.1",
     "vitest": "^4.1.9"
   }
