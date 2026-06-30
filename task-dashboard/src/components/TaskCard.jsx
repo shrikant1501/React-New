@@ -1,23 +1,25 @@
-// TaskCard.jsx — Phase 6: Wrapped with React.memo for performance optimisation.
+// TaskCard.jsx — Phase 12: clsx added for conditional classNames.
 //
-// WHY React.memo HERE?
-// TaskCard is rendered once per task — currently 6+ instances.
-// When App re-renders (e.g., filter changes), ALL TaskCards re-rendered by default.
-// Since a filter change doesn't affect task data, those re-renders are wasted.
-// React.memo skips re-renders when all props are shallowly equal.
+// WHAT IS clsx?
+// A tiny utility (~200 bytes) that builds className strings from conditions.
+// It replaces verbose template literals and ternary expressions with a clean API.
 //
-// FOR React.memo TO WORK, the parent (App) must provide STABLE prop references:
-//   - title, description, status, priority, phase → primitives → stable ✅
-//   - id → primitive → stable ✅
-//   - onDelete, onStatusChange → functions → UNSTABLE unless useCallback ✅ (done in App)
+// BEFORE (template literal ternary):
+//   className={`task-card task-card-${status} ${isSelected ? 'selected' : ''}`}
 //
-// RENDER COUNT INDICATOR (development only):
-// We use useRenderCount to display how many times this component has rendered.
-// This makes it VISUALLY obvious when memoisation is working vs not working.
-// Without optimisation: all 6 cards increment on every App re-render.
-// With optimisation: only the changed card increments.
+// AFTER (clsx):
+//   className={clsx('task-card', `task-card-${status}`, isSelected && 'selected')}
+//
+// clsx accepts: strings, objects { 'class': boolean }, arrays, falsy values
+// Falsy values (false, null, undefined, 0) are silently ignored — no empty strings.
+//
+// clsx vs cx vs classnames:
+//   clsx       — lightweight, tree-shakeable, ESM-first (we use this)
+//   classnames — older, same API, slightly larger
+//   cx         — Emotion's bound version (CSS-in-JS only)
 
 import { memo } from 'react'
+import clsx from 'clsx'
 import StatusBadge from './StatusBadge'
 import PriorityIndicator from './PriorityIndicator'
 import useRenderCount from '../hooks/useRenderCount'
@@ -48,7 +50,10 @@ const TaskCard = memo(function TaskCard({
   }
 
   return (
-    <div className={`task-card task-card-${status}`}>
+    // clsx: first arg is always-on base class, second is dynamic status variant.
+    // Equivalent to: `task-card task-card-${status}` — but scales cleanly
+    // when you add more conditions (e.g., isSelected, isDragging, isHighlighted).
+    <div className={clsx('task-card', `task-card-${status}`)}>
 
       <div className="task-card-header">
         <h3 className="task-title">{title}</h3>
